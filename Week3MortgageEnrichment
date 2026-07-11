@@ -1,0 +1,49 @@
+import pandas as pd
+
+# Loading Week 2 cleaned residential datasets
+soldDf = pd.read_csv("CRMLSSoldCleaned.csv", low_memory=False)
+listingsDf = pd.read_csv("CRMLSListingCleaned.csv", low_memory=False)
+
+# Step 1 – Fetch the mortgage rate data from FRED
+url = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=MORTGAGE30US"
+mortgage = pd.read_csv(url, parse_dates=["observation_date"])
+mortgage.columns = ["date", "rate_30yr_fixed"]
+
+mortgage["date"] = pd.to_datetime(mortgage["date"], errors="coerce")
+mortgage["rate_30yr_fixed"] = pd.to_numeric(mortgage["rate_30yr_fixed"], errors="coerce")
+
+# Step 2 – Resample weekly rates to monthly averages
+mortgage["year_month"] = mortgage["date"].dt.to_period("M")
+mortgage_monthly = (
+    mortgage.groupby("year_month")["rate_30yr_fixed"]
+    .mean()
+    .reset_index()
+)
+
+# Step 3 – Create a matching year_month key on the MLS datasets
+soldDf["CloseDate"] = pd.to_datetime(soldDf["CloseDate"], format="mixed", errors="coerce")
+listingsDf["ListingContractDate"] = pd.to_datetime(
+    listingsDf["ListingContractDate"], format="mixed", errors="coerce"
+)
+
+soldDf["year_month"] = soldDf["CloseDate"].dt.to_period("M")
+listingsDf["year_month"] = listingsDf["ListingContractDate"].dt.to_period("M")
+
+# Step 4 – Merge
+sold_with_rates = soldDf.merge(mortgage_monthly, on="year_month", how="left")
+listings_with_rates = listingsDf.merge(mortgage_monthly, on="year_month", how="left")
+
+# Step 5 – Validate the merge
+print(sold_with_rates["rate_30yr_fixed"].isnull().sum())
+print(listings_with_rates["rate_30yr_fixed"].isnull().sum())
+
+# Preview
+print(
+    sold_with_rates[
+        ["CloseDate", "year_month", "ClosePrice", "rate_30yr_fixed"]
+    ].head()
+)
+
+# Save outputs
+sold_with_rates.to_csv("CRMLSSoldWithRates.csv", index=False)
+listings_with_rates.to_csv("CRMLSListingWithRates.csv", index=False)
