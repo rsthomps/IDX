@@ -1,4 +1,5 @@
-# Current progress: Completing week 2
+# Current progress: Completed week 3
+
 
 # IDX Exchange Internship – Week 1
 
